@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Server Power Switch</title>
+    <link rel="icon" type="image/png" href="icon.png" />
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Poppins", sans-serif;
+        background: #1e1e1e;
+        color: #ffffff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        text-align: center;
+        padding: 20px;
+      }
+
+      .container {
+        width: 300px;
+        /* Set the width */
+        height: 320px;
+        /* Match the height to make it square */
+        background: #2c2c2c;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        width: 100%;
+        max-width: 400px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      h1 {
+        font-size: 22px;
+        margin-bottom: 20px;
+        font-weight: 600;
+      }
+
+      .power-btn {
+        width: 90px;
+        height: 90px;
+        border: none;
+        border-radius: 50%;
+        background: #444;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: 0.2s;
+        position: relative;
+        margin-bottom: 20px;
+      }
+
+      .power-btn:active {
+        transform: scale(0.95);
+      }
+
+      .power-btn.on {
+        background: #4caf50;
+        box-shadow: 0 0 20px rgba(76, 175, 80, 0.8);
+      }
+
+      .power-btn.off {
+        background: #f44336;
+        box-shadow: 0 0 15px rgba(244, 67, 54, 0.8);
+      }
+
+      .power-btn.unknown {
+        background: #2196f3;
+        /* Blue button */
+        box-shadow: 0 0 15px rgba(33, 150, 243, 0.8);
+      }
+
+      .power-btn img {
+        width: 80px;
+        height: 80px;
+        user-select: none;
+        transition: filter 0.2s;
+      }
+
+      /* Status Box Styling */
+      .status-box {
+        width: 90%;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 10px;
+        text-align: center;
+        transition: 0.3s ease-in-out;
+        background: linear-gradient(145deg, #232323, #292929);
+        box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.4),
+          -4px -4px 8px rgba(255, 255, 255, 0.1),
+          inset 2px 2px 4px rgba(255, 255, 255, 0.05),
+          inset -2px -2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .status.online {
+        color: #4caf50;
+        border: 1px solid rgba(76, 175, 80, 0.5);
+        box-shadow: inset 2px 2px 4px rgba(255, 255, 255, 0.05),
+          inset -2px -2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      .status.offline {
+        color: #f44336;
+        border: 1px solid rgba(244, 67, 54, 0.5);
+        box-shadow: inset 2px 2px 4px rgba(255, 255, 255, 0.05),
+          inset -2px -2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      .status.unknown {
+        color: #2196f3;
+        /* Blue color */
+        border: 1px solid rgba(33, 150, 243, 0.5);
+        box-shadow: inset 2px 2px 4px rgba(255, 255, 255, 0.05),
+          inset -2px -2px 4px rgba(0, 0, 0, 0.3);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>Server Power Switch</h1>
+
+      <button id="powerButton" class="power-btn off">
+        <img
+          id="powerIcon"
+          src="icon.png"
+          alt="Power Icon"
+          ondragstart="return false;"
+        />
+      </button>
+
+      <div id="serverStatus" class="status-box status offline">
+        Server is offline
+      </div>
+      <div id="nodeMCUStatus" class="status-box status offline">
+        NodeMCU is offline
+      </div>
+    </div>
+
+    <script>
+      const broker = "MQTT broker address";
+      const commandTopic = "pc/control";
+      const serverStatusTopic = "pc/status";
+      const espStatusTopic = "esp/status";
+
+      const options = {
+        username: "MQTT username",
+        password: "MQTT password",
+        clean: true,
+        connectTimeout: 4000,
+        clientId: "webApp_" + Math.random().toString(16).substr(2, 8),
+        protocol: "wss",
+      };
+
+      let client;
+      let reconnectTimeout;
+      let lastClickTime = 0;
+      const debounceDelay = 500;
+      let lastESPUpdateTime = Date.now();
+      const espTimeout = 5000;
+
+      const powerButton = document.getElementById("powerButton");
+      const serverStatus = document.getElementById("serverStatus");
+      const nodeMCUStatus = document.getElementById("nodeMCUStatus");
+
+      function connectMQTT() {
+        client = mqtt.connect(broker, options);
+
+        client.on("connect", () => {
+          clearTimeout(reconnectTimeout);
+          client.subscribe(serverStatusTopic);
+          client.subscribe(espStatusTopic);
+        });
+
+        document.addEventListener("contextmenu", function (event) {
+          if (event.target.tagName === "IMG") {
+            event.preventDefault();
+          }
+        });
+
+        client.on("message", (topic, message) => {
+          const msg = message.toString();
+
+          if (topic === serverStatusTopic) {
+            const isOnline = msg === "ON";
+            if (
+              serverStatus.innerText !==
+              (isOnline ? "Server is online" : "Server is offline")
+            ) {
+              serverStatus.innerText = isOnline
+                ? "Server is online"
+                : "Server is offline";
+              serverStatus.className = `status-box status ${
+                isOnline ? "online" : "offline"
+              }`;
+            }
+            powerButton.className = `power-btn ${isOnline ? "on" : "off"}`;
+          } else if (topic === espStatusTopic && msg === "Online") {
+            if (nodeMCUStatus.innerText !== "NodeMCU is online") {
+              nodeMCUStatus.innerText = "NodeMCU is online";
+              nodeMCUStatus.className = "status-box status online";
+            }
+            lastESPUpdateTime = Date.now();
+          }
+        });
+
+        client.on("close", () => {
+          reconnectTimeout = setTimeout(connectMQTT, 5000);
+        });
+
+        client.on("error", (err) => {
+          console.log(`MQTT Error: ${err.message}`);
+        });
+
+        client.on("offline", () => {
+          console.log("MQTT is offline. Trying to reconnect...");
+        });
+
+        powerButton.addEventListener("click", () => {
+          const now = Date.now();
+          if (now - lastClickTime < debounceDelay) return;
+          lastClickTime = now;
+
+          client.publish(commandTopic, "power");
+        });
+
+        setInterval(() => {
+          if (Date.now() - lastESPUpdateTime > espTimeout) {
+            nodeMCUStatus.innerText = "NodeMCU is offline";
+            nodeMCUStatus.className = "status-box status offline";
+
+            // 🚀 When ESP is offline, update Server Status to "Unknown"
+            serverStatus.innerText = "Waiting for server status...";
+            serverStatus.className = "status-box status unknown";
+            powerButton.className = "power-btn unknown";
+          }
+        });
+      }
+
+      connectMQTT();
+    </script>
+  </body>
+</html>
