@@ -12,10 +12,13 @@ This project allows remote power control of a home server via a web app, reducin
 
 - A manual push button allows local power control in both offline and online modes. 
 
-- The computer's actual blue power LED is wired to the ESP8266 instead of the motherboard, reflecting the real-time power status while its original terminals are rerouted through the ESP8266.   
+- The computer's actual blue power LED is wired to the ESP8266 instead of the motherboard, reflecting the real-time power status while its original terminals are rerouted through the ESP8266.
 
-## Web App  
-The web app provides:  
+**Note:** I have used the **TaskScheduler library** to ensure that all functions/tasks run **in parallel and smoothly without blocking execution**. Initially, I attempted the usual `millis()`-based approach, but it did not work perfectly in all scenarios.
+
+## Web App
+![image](https://github.com/user-attachments/assets/1d7db221-c1a7-46a8-b298-f2fbaee00639)
+The web app is hosted on **Netlify** and provides:  
 - Remote control of the server power switch.  
 - Real-time ESP8266 status (Online/Offline).  
 - Live server power status (ON/OFF).  
