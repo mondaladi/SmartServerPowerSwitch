@@ -1,4 +1,4 @@
-# SmartServerPowerSwitch    
+# Smart Server Power Switch    
 
 ## Purpose  
 This project allows remote power control of a home server via a web app, reducing unnecessary power consumption. Instead of switching the AC power, a NodeMCU (ESP8266) electronically simulates the motherboard’s power button press using a BC547 transistor. Automating the AC power switch was avoided due to challenges in ensuring the server turns on automatically when power is applied.  
