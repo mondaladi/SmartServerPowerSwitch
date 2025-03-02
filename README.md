@@ -18,6 +18,7 @@ This project allows remote power control of a home server via a web app, reducin
 
 ## Web App
 ![image](https://github.com/user-attachments/assets/1d7db221-c1a7-46a8-b298-f2fbaee00639)
+
 The web app is hosted on **Netlify** and provides:  
 - Remote control of the server power switch.  
 - Real-time ESP8266 status (Online/Offline).  
